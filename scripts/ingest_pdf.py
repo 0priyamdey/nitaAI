@@ -1,50 +1,49 @@
-import requests
-from bs4 import BeautifulSoup
+import fitz  # PyMuPDF [1, 2, 3, 4, 5]
 import os
+import glob
 
-# --- Configuration ---
-# Manually inspect the college website and find the CSS selectors 
-# for the main content containers.
-TARGET_SELECTORS =[]
+# --- CORRECTED PATHS ---
+# Paths are now relative to the project ROOT, pointing into your backend folder
+PDF_DIRECTORY = "backend/data/pdfs"
+OUTPUT_DIR = "backend/data/pdf_text"
 
-# List of URLs to scrape
-URLS_TO_SCRAPE =[]
-
-OUTPUT_DIR = "data/web_text"
+# Create the output directory if it doesn't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# --- Scraping Logic ---
-for url in URLS_TO_SCRAPE:
+print(f"Checking for PDFs in: {PDF_DIRECTORY}")
+pdf_files = glob.glob(os.path.join(PDF_DIRECTORY, "*.pdf"))
+
+if not pdf_files:
+    print(f"Warning: No PDF files found in {PDF_DIRECTORY}.")
+    print("Please add your college's PDF files to that folder.")
+else:
+    print(f"Found {len(pdf_files)} PDF(s). Starting processing...")
+
+for pdf_path in pdf_files:
     try:
-        page = requests.get(url, timeout=10)
-        page.raise_for_status()
+        doc = fitz.open(pdf_path)
+        full_text = ""
+        base_filename = os.path.basename(pdf_path)
         
-        soup = BeautifulSoup(page.content, "html.parser")
+        print(f"  Processing: {base_filename}...")
         
-        content_found = False
-        for selector in TARGET_SELECTORS:
-            container = soup.select_one(selector)
+        # Iterate through each page in the PDF [1, 3]
+        for page_num, page in enumerate(doc):
+            # Get plain text (UTF-8)
+            text = page.get_text().encode("utf8") [1, 3]
+            full_text += text.decode("utf8")
+            full_text += f"\n\n--- Page {page_num + 1} ---\n\n" # Add a page break
             
-            if container:
-                # Found a matching container, extract its text
-                #.get_text() extracts text; strip=True cleans whitespace 
-                text = container.get_text(separator=" ", strip=True)
-                
-                # Create a simple filename
-                filename = url.split('/')[-1] or url.split('/')[-2]
-                filename = f"{filename}.txt"
-                
-                output_path = os.path.join(OUTPUT_DIR, filename)
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(f"Source URL: {url}\n\n")
-                    f.write(text)
-                    
-                print(f"Successfully scraped and saved: {url}")
-                content_found = True
-                break # Stop searching for selectors once content is found
+        # Save the extracted text
+        output_filename = os.path.join(OUTPUT_DIR, f"{base_filename}.txt")
         
-        if not content_found:
-            print(f"Warning: No target content found for {url}")
+        with open(output_filename, "w", encoding="utf-8") as f:
+            f.write(f"Source PDF: {base_filename}\n\n")
+            f.write(full_text)
             
-    except requests.RequestException as e:
-        print(f"Error fetching {url}: {e}")
+        print(f"  Successfully extracted text to: {output_filename}")
+        
+    except Exception as e:
+        print(f"  Error processing {pdf_path}: {e}")
+
+print("PDF processing complete.")
